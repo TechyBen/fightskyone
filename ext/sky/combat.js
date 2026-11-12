@@ -32,7 +32,8 @@ function missileGeometry() {
 }
 
 export class Combat {
-  constructor(scene, camera, player, traffic, particles, { onBurst }) {
+  constructor(scene, camera, player, traffic, particles, audio, { onBurst }) {
+    this.audio = audio;
     this.scene = scene;
     this.camera = camera;
     this.player = player;
@@ -71,6 +72,7 @@ export class Combat {
     if (!list.length) return;
     const i = list.findIndex(x => x.j === this.locked);
     this.locked = list[(i + 1) % list.length].j;
+    this.audio.locked();
     this.candidate = null;
     this.lockT = 0;
   }
@@ -87,6 +89,7 @@ export class Combat {
     mesh.scale.setScalar(1.6);
     this.scene.add(mesh);
     const dir = this.locked ? c.fwd.clone() : this.aimRay().clone();
+    this.audio.launch(this.side);
     this.missiles.push({ mesh, pos, vel: c.fwd.clone().multiplyScalar(c.speed).addScaledVector(down, 25), dir, target: this.locked, age: 0, speed: c.speed });
     return true;
   }
@@ -100,7 +103,7 @@ export class Combat {
       // Keep a lock while the jet stays roughly ahead and in range.
       if (this.locked) {
         const a = this.aimed(this.locked, dir);
-        if (a.ang > KEEP_CONE || a.d > KEEP_RANGE) { this.lostT += dt; if (this.lostT > 1) this.locked = null; } else this.lostT = 0;
+        if (a.ang > KEEP_CONE || a.d > KEEP_RANGE) { this.lostT += dt; if (this.lostT > 1) { this.locked = null; this.audio.lost(); } } else this.lostT = 0;
       }
       // A new candidate: the jet nearest the cursor within the cone.
       let best = null, ba = LOCK_CONE;
@@ -109,9 +112,9 @@ export class Combat {
         if (a.d < LOCK_RANGE && a.ang < ba) { ba = a.ang; best = j; }
       }
       if (best && best !== this.locked) {
-        if (best !== this.candidate) { this.candidate = best; this.lockT = 0; }
+        if (best !== this.candidate) { this.candidate = best; this.lockT = 0; this.audio.lockTick(); }
         this.lockT += dt;
-        if (this.lockT >= LOCK_TIME) { this.locked = best; this.candidate = null; this.lostT = 0; }
+        if (this.lockT >= LOCK_TIME) { this.locked = best; this.candidate = null; this.lostT = 0; this.audio.locked(); }
       } else {
         this.candidate = null;
         this.lockT = 0;
@@ -163,10 +166,14 @@ export class Combat {
         if (hit) {
           const at = hit.craft.pos.clone().addScaledVector(hit.craft.fwd, 6);
           this.burst(at, hit);
+          const rel = at.clone().sub(this.camera.position), right = new THREE.Vector3();
+          this.camera.getWorldDirection(right);
+          right.set(-right.z, 0, right.x).normalize();
+          this.audio.impact(rel.length(), rel.dot(right) / Math.max(rel.length(), 1));
           this.traffic.hit(hit);
           if (this.locked === hit) this.locked = null;
           this.onBurst(hit, at);
-        } else this.fizzle(m.pos);
+        } else { this.fizzle(m.pos); this.audio.fizzle(); }
       }
     }
   }

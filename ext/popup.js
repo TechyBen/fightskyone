@@ -1,4 +1,4 @@
-const UNITS = { glass: '%', blur: ' px', mins: ' min', px: ' px', fps: ' fps' };
+const UNITS = { vol: '%', music: '%', glass: '%', blur: ' px', mins: ' min', px: ' px', fps: ' fps' };
 
 chrome.storage.sync.get(FIGHTSKY_DEFAULTS).then(cfg => {
   for (const key of Object.keys(FIGHTSKY_DEFAULTS)) {

@@ -43,6 +43,12 @@ You can't crash: the jet pulls up by itself near the ground and the sea. Jets ou
 - **Skies**: Clear Morning, Golden Hour, Above the Deck, Autumn Haze and Dusk Towers, changing behind a fade every few minutes (not while you're flying).
 - **Look**: the playtreeone PS1 kit (vertex snapping, palette ramps with ordered dithering, height fog, low-res target with god rays and colour quantising, nearest-neighbour upscale).
 
+## Sound
+
+Only while flying (behind the feed the sky is silent), all synthesised with Web Audio, no samples: an engine that follows the throttle, wind that rises with speed and turning (with a random wobble so turns don't all sound the same) and goes muffled in cloud, jets whooshing past on their side, lock-on chirps, the missile's thump and hiss, a soft boom and a little F minor bell when a post bursts open, flare crackles.
+
+The music is generated live too: 130 BPM in F minor, a syncopated FM bass line following Fm, Db, Ab, Eb, under a pad, with hats, a soft kick and a bell line coming and going in sections. Volume and music level are in the popup.
+
 ## The jets
 
 - Your follow list comes from Bluesky's public API, and new posts from [Jetstream](https://github.com/bluesky-social/jetstream) filtered to those accounts (the last 3 hours replay on start). Each top-level post becomes a jet; up to 14 fly at once, new posts first, then older ones again round robin so the sky stays busy.
@@ -55,6 +61,9 @@ You can't crash: the jet pulls up by itself near the ground and the sea. Jets ou
 |---|---|---|
 | Sky behind Bluesky | on | Switching off restores Bluesky exactly |
 | Jets from people I follow | on | |
+| Sound while flying | on | Engine, wind and effects |
+| Volume | 60% | |
+| Music | 50% | |
 | Whose follows | blank | Blank uses the account signed in to bsky.app |
 | Feed panel | 70% | Opacity of the blurred panel behind the feed |
 | Blur | 6 px | |

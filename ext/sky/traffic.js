@@ -189,7 +189,7 @@ export class Traffic {
         j.rollT += dt;
         const k = Math.min(1, j.rollT / 1.6);
         c.roll = TAU * (k * k * (3 - 2 * k));
-        if (j.rollT < 1.2 && Math.random() < dt * 30) this.flare(c);
+        if (j.rollT < 1.2 && Math.random() < dt * 30) { this.flare(c); if (Math.random() < 0.3 && c.pos.distanceTo(player.pos) < 3000) this.audio?.flare((Math.random() - 0.5) * 0.6); }
         if (k >= 1) { j.rollT = -1; c.roll = 0; }
       }
       move(c, dt);

@@ -39,6 +39,8 @@
       frame.id = 'fightsky-frame';
       frame.setAttribute('aria-hidden', 'true');
       frame.tabIndex = -1;
+      // Sound only plays in fly mode, which starts with a click on the page.
+      frame.allow = 'autoplay';
       veil = document.createElement('div');
       veil.id = 'fightsky-veil';
       glass = document.createElement('div');
@@ -70,6 +72,7 @@
   }
 
   function post(msg) { frame?.contentWindow?.postMessage(msg, ORIGIN); }
+  function sendSound() { post({ type: 'fightsky:sound', on: cfg.sound, vol: cfg.vol, music: cfg.music }); }
 
   // --- who's signed in -------------------------------------------------------
   // Whose follows become jets: the handle typed in the popup, else the
@@ -164,6 +167,7 @@
     // the page faded out with nothing to steer.
     if (m?.type === 'fightsky:ready') {
       onReady();
+      sendSound();
       if (flying) { frame.focus(); post('fightsky:fly'); }
     } else if (m?.type === 'fightsky:leave') setFly(false);
     else if (m?.type === 'fightsky:open' && /^did:[a-z]+:[\w.:%-]+$/.test(m.did) && /^[\w.~:-]+$/.test(m.rkey)) {
@@ -360,6 +364,8 @@
   function apply(changed) {
     if (!cfg.enabled) return stop();
     if (!changed || changed.some(k => FIGHTSKY_RELOAD.includes(k))) start();
+    // Sound settings change live, without reloading the sky.
+    if (changed?.some(k => k === 'sound' || k === 'vol' || k === 'music')) sendSound();
     paintGlass();
   }
 

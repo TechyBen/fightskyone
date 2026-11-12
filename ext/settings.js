@@ -2,6 +2,9 @@
 // eslint-disable-next-line no-unused-vars
 const FIGHTSKY_DEFAULTS = {
   enabled: true,
+  sound: true,   // engine, wind and effects, only while flying
+  vol: 60,       // 0-100, master
+  music: 50,     // 0-100, the music under it
   mins: 12,      // minutes per sky
   px: 240,       // render height in pixels
   fps: 30,       // frame cap behind the feed (fly mode runs uncapped)

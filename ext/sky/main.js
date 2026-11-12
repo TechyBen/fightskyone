@@ -24,6 +24,7 @@ import { Traffic } from './traffic.js';
 import { Player } from './flight.js';
 import { Combat } from './combat.js';
 import { Hud } from './hud.js';
+import { Audio } from './audio.js';
 import { loadFollows, listen, demoFeed, avatarColour, xrpc } from './feed.js';
 
 const q = new URLSearchParams(location.search);
@@ -75,8 +76,11 @@ function saveMark() {
 const traffic = new Traffic(scene, particles, U, { marks, saveMark });
 const player = new Player(scene, camera, particles);
 let people = {};
-const hud = new Hud({ onClose: () => {} });
-const combat = new Combat(scene, camera, player, traffic, particles, {
+const audio = new Audio();
+audio.set({ on: q.get('sound') !== '0', vol: (+(q.get('vol') ?? 60)) / 100, music: (+(q.get('music') ?? 50)) / 100 });
+const hud = new Hud({ onClose: () => audio.closeCard() });
+traffic.audio = audio;
+const combat = new Combat(scene, camera, player, traffic, particles, audio, {
   onBurst: (j, at) => {
     const s = hud.project(at, camera) || { x: innerWidth / 2, y: innerHeight / 2 };
     hud.showCard(j.post, people, s);
@@ -166,6 +170,7 @@ function setFly(on) {
   document.body.classList.toggle('fly', on);
   if (on) window.focus();
   else hud.closeCard(true);
+  audio.setActive(on);
 }
 
 function leave() {
@@ -186,10 +191,13 @@ addEventListener('message', e => {
   if (e.source !== parent || e.source === window) return;
   if (e.data === 'fightsky:fly') setFly(true);
   else if (e.data === 'fightsky:calm') setFly(false);
+  // Sound settings, live: { type: 'fightsky:sound', on, vol, music } (0-100).
+  else if (e.data?.type === 'fightsky:sound') audio.set({ on: !!e.data.on, vol: e.data.vol / 100, music: e.data.music / 100 });
 });
 
 addEventListener('keydown', e => {
   if (!fly) return;
+  audio.start();   // a gesture: sound may start
   if (e.code === 'Escape') { e.preventDefault(); if (hud.card) hud.closeCard(); else leave(); return; }
   if (e.code === 'Enter') { e.preventDefault(); openCard(); return; }
   if (e.code === 'KeyC') { hud.closeCard(); return; }
@@ -207,6 +215,7 @@ addEventListener('pointermove', e => {
   if (fly) player.aimOn = true;
 });
 addEventListener('pointerdown', e => {
+  if (fly) audio.start();
   if (!fly || e.button !== 0 || e.target.closest?.('.card')) return;
   player.aimOn = true;
   combat.fire();
@@ -244,6 +253,8 @@ function frame(nowMs) {
 
   player.update(dt, clouds);
   traffic.update(dt, player);
+  const pc = player.craft;
+  audio.update(dt, { throttle: player.throttle, speed: pc.speed, turn: pc.turn, bank: pc.bank, inside: clouds.inside, camera, jets: traffic.jets });
   combat.update(dt, fly);
   clouds.update(dt, camera.position);
   land.update(camera.position);
@@ -271,4 +282,4 @@ if (q.get('fly') === '1') setFly(true);
 if (EMBEDDED) parent.postMessage({ type: 'fightsky:ready' }, PARENT);
 
 // For testing from the devtools console.
-window.fightsky = { forestAt, THREE, U, scene, camera, renderer, player, traffic, combat, clouds, land, hud, particles, heightAt, setFly, setSky: i => setSky(skyIndex = i), status: () => status };
+window.fightsky = { audio, forestAt, THREE, U, scene, camera, renderer, player, traffic, combat, clouds, land, hud, particles, heightAt, setFly, setSky: i => setSky(skyIndex = i), status: () => status };
