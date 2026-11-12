@@ -60,6 +60,12 @@ function landMaterial() {
   return makePs1Material({ uCenter: { value: new THREE.Vector2() }, ...W }, NOISE_GLSL + /* glsl */ `
 uniform vec2 uCenter;
 attribute float aSpacing;
+// Camera-relative transform (small numbers however far you've flown).
+vec4 relClip(vec3 world) {
+  vec3 rel = vec3((uCenter.x - cameraPosition.x) + (world.x - uCenter.x), world.y - cameraPosition.y,
+                  (uCenter.y - cameraPosition.z) + (world.z - uCenter.y));
+  return projectionMatrix * vec4(mat3(viewMatrix) * rel, 1.0);
+}
 varying vec3 vWorld;
 varying vec3 vN;
 // heightAt (noise.js) with each octave faded toward its average once the
@@ -98,7 +104,7 @@ void main() {
                           heightLod(w - vec2(0.0, e), aSpacing) - heightLod(w + vec2(0.0, e), aSpacing)));
   vWorld = vec3(w.x, h, w.y);
   vN = n;
-  gl_Position = psx(projectionMatrix * viewMatrix * vec4(vWorld, 1.0));
+  gl_Position = psx(relClip(vWorld));
 }`, NOISE_GLSL + FOREST_GLSL + /* glsl */ `
 uniform vec3 uSnow;
 varying vec3 vWorld;
@@ -139,9 +145,15 @@ function waterMaterial() {
   return makePs1Material({ uCenter: { value: new THREE.Vector2() }, ...W }, /* glsl */ `
 uniform vec2 uCenter;
 varying vec3 vWorld;
+// Camera-relative transform (small numbers however far you've flown).
+vec4 relClip(vec3 world) {
+  vec3 rel = vec3((uCenter.x - cameraPosition.x) + (world.x - uCenter.x), world.y - cameraPosition.y,
+                  (uCenter.y - cameraPosition.z) + (world.z - uCenter.y));
+  return projectionMatrix * vec4(mat3(viewMatrix) * rel, 1.0);
+}
 void main() {
   vWorld = vec3(uCenter.x + position.x, 0.0, uCenter.y + position.z);
-  gl_Position = psx(projectionMatrix * viewMatrix * vec4(vWorld, 1.0));
+  gl_Position = psx(relClip(vWorld));
 }`, NOISE_GLSL + /* glsl */ `
 uniform vec3 uWater[3];
 uniform vec3 uSkyHorizon;

@@ -95,13 +95,25 @@ uniform vec3 uDrift;
 uniform float uTop;
 uniform vec2 uCenter;
 varying vec3 vWorld;
+// Camera-relative: offsets stay small however far you've flown, so the GPU's
+// 32-bit maths can't make the layer wobble. (uCenter is the main camera's xz
+// every frame; in the shadow pass the camera is the sun's, far away, so the
+// offset from it is taken in two small steps.)
+vec4 layerClip(vec3 world) {
+  vec3 rel = vec3((uCenter.x - cameraPosition.x) + (world.x - uCenter.x), world.y - cameraPosition.y,
+                  (uCenter.y - cameraPosition.z) + (world.z - uCenter.y));
+  return projectionMatrix * vec4(mat3(viewMatrix) * rel, 1.0);
+}
 void main() {
   vWorld = vec3(uCenter.x + position.x, uTop, uCenter.y + position.z);
-  gl_Position = psx(projectionMatrix * viewMatrix * vec4(vWorld, 1.0));
+  // No PS1 vertex snap on the flat layers: on their big triangles it nudged
+  // the whole sheet a pixel at a time.
+  gl_Position = layerClip(vWorld);
 }`, NOISE_GLSL + /* glsl */ `
 uniform vec3 uDrift;
 uniform float uAmount;
 uniform vec3 uSkyTop;
+uniform vec2 uCenter;
 varying vec3 vWorld;
 float deck(vec2 p) { return n_fbm(p / 2600.0, 3, 101.0) * 0.7 + n_value(p / 420.0, 107.0) * 0.3; }
 void main() {
@@ -121,6 +133,7 @@ void main() {
   vec3 c = mix(shade, sun, q);
   float d = distance(vWorld, cameraPosition);
   if (b > smoothstep(20.0, 260.0, d)) discard;
+  if (b > 1.0 - smoothstep(24000.0, 33000.0, length(vWorld.xz - uCenter))) discard;
   gl_FragColor = vec4(applyFog(c, vWorld), 1.0);
 }`, { side: THREE.DoubleSide });
 }
@@ -129,9 +142,18 @@ function cirrusMaterial() {
   return makePs1Material({ uDrift: { value: new THREE.Vector3() }, uAmount: { value: 0 }, uCenter: { value: new THREE.Vector2() } }, /* glsl */ `
 uniform vec2 uCenter;
 varying vec3 vWorld;
+// Camera-relative: offsets stay small however far you've flown, so the GPU's
+// 32-bit maths can't make the layer wobble. (uCenter is the main camera's xz
+// every frame; in the shadow pass the camera is the sun's, far away, so the
+// offset from it is taken in two small steps.)
+vec4 layerClip(vec3 world) {
+  vec3 rel = vec3((uCenter.x - cameraPosition.x) + (world.x - uCenter.x), world.y - cameraPosition.y,
+                  (uCenter.y - cameraPosition.z) + (world.z - uCenter.y));
+  return projectionMatrix * vec4(mat3(viewMatrix) * rel, 1.0);
+}
 void main() {
   vWorld = vec3(uCenter.x + position.x, 7800.0, uCenter.y + position.z);
-  gl_Position = projectionMatrix * viewMatrix * vec4(vWorld, 1.0);
+  gl_Position = layerClip(vWorld);
 }`, NOISE_GLSL + /* glsl */ `
 uniform vec3 uDrift;
 uniform float uAmount;
@@ -272,8 +294,10 @@ export class Clouds {
   update(dt, camPos) {
     this.drift.addScaledVector(WIND, dt);
     for (const m of [this.puffs, this.deck, this.cirrus]) m.material.uniforms.uDrift.value.copy(this.drift);
-    this.deck.material.uniforms.uCenter.value.set(Math.round(camPos.x / 500) * 500, Math.round(camPos.z / 500) * 500);
-    this.cirrus.material.uniforms.uCenter.value.set(Math.round(camPos.x / 500) * 500, Math.round(camPos.z / 500) * 500);
+    // The flat layers sit exactly round the camera (their pattern is in world
+    // space, so only the sheet moves, never the clouds on it).
+    this.deck.material.uniforms.uCenter.value.set(camPos.x, camPos.z);
+    this.cirrus.material.uniforms.uCenter.value.set(camPos.x, camPos.z);
     const ci = Math.floor((camPos.x - this.drift.x) / CELL), cj = Math.floor((camPos.z - this.drift.z) / CELL);
     if (ci !== this.cell[0] || cj !== this.cell[1]) this.rebuild(ci, cj);
     // Inside a cloud: a soft whiteout (main.js mixes it in).
