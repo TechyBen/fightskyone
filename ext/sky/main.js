@@ -46,7 +46,9 @@ renderer.setPixelRatio(1);
 renderer.autoClear = true;
 const post = new Pipeline(renderer);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(62, 16 / 9, 2, 60000);
+// Near plane at 6 m (the chase camera sits ~38 m back): far more depth
+// precision at range, so clouds touching hills don't flicker.
+const camera = new THREE.PerspectiveCamera(62, 16 / 9, 6, 60000);
 camera.layers.enable(1);
 
 const sky = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), makeSkyMaterial());
@@ -103,11 +105,20 @@ const shadowRT = makeShadowTarget(1024);
 const sunCam = new THREE.OrthographicCamera(-9000, 9000, 9000, -9000, 100, 60000);
 sunCam.layers.set(1);
 let shadowFrame = 0;
+// The view is snapped to whole shadow texels in the sun's own frame, so cloud
+// shadows stay put on the land instead of crawling as you fly.
+const lightRight = new THREE.Vector3(), lightUp = new THREE.Vector3(), centre = new THREE.Vector3();
 function updateShadows() {
-  const c = camera.position, texel = 18000 / 1024;
-  const cx = Math.round(c.x / texel) * texel, cz = Math.round(c.z / texel) * texel;
-  const centre = new THREE.Vector3(cx, 800, cz);
-  sunCam.position.copy(centre).addScaledVector(U.uSunDir.value, 25000);
+  const texel = 18000 / 1024, sun = U.uSunDir.value;
+  sunCam.position.copy(sun).multiplyScalar(25000);
+  sunCam.lookAt(0, 0, 0);
+  sunCam.updateMatrixWorld();
+  lightRight.setFromMatrixColumn(sunCam.matrixWorld, 0);
+  lightUp.setFromMatrixColumn(sunCam.matrixWorld, 1);
+  centre.set(camera.position.x, 800, camera.position.z);
+  const r = centre.dot(lightRight), u = centre.dot(lightUp);
+  centre.addScaledVector(lightRight, Math.round(r / texel) * texel - r).addScaledVector(lightUp, Math.round(u / texel) * texel - u);
+  sunCam.position.copy(centre).addScaledVector(sun, 25000);
   sunCam.lookAt(centre);
   sunCam.updateMatrixWorld();
   sky.visible = false;
@@ -270,7 +281,7 @@ function frame(nowMs) {
   land.update(camera.position);
   particles.flush();
 
-  if (shadowFrame++ % 3 === 0) updateShadows();
+  if (shadowFrame++ % 2 === 0) updateShadows();
 
   // Fade: a scene change goes through the fog colour; inside a cloud the view
   // goes soft white-grey.

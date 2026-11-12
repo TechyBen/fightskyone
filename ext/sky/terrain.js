@@ -18,7 +18,12 @@ export { heightAt };
 
 const R = 26000;     // grid half-width, metres
 const N = 176;       // vertices per side
-const SNAP = 200;    // the grid moves in steps this big
+// The grid slides smoothly with the camera, and each vertex leaves out the
+// noise octaves too fine for its spacing (fading them out between 6 and 3
+// spacings per period). With nothing finer than the grid left to sample, the
+// drawn land changes only gently as the vertices slide over it: no popping
+// ridges in the distance. (Snapping the grid in 200 m steps made far ridges
+// jump by up to ~250 m; this keeps it to a couple of metres per step.)
 
 // Forest cover, the same in JS (tree placement) and GLSL (ground colour).
 export function forestAt(x, z) {
@@ -32,11 +37,13 @@ const FOREST_MIN = 0.53;
 
 function gridGeometry() {
   const map = u => R * (0.08 * u + 0.92 * u * u * u);
-  const pos = new Float32Array(N * N * 3), idx = [];
+  const space = u => R * (0.08 + 2.76 * u * u) * 2 / (N - 1);   // map'(u) x one step
+  const pos = new Float32Array(N * N * 3), spacing = new Float32Array(N * N), idx = [];
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-    const o = (j * N + i) * 3;
-    pos[o] = map(i / (N - 1) * 2 - 1);
-    pos[o + 2] = map(j / (N - 1) * 2 - 1);
+    const o = (j * N + i) * 3, u = i / (N - 1) * 2 - 1, v = j / (N - 1) * 2 - 1;
+    pos[o] = map(u);
+    pos[o + 2] = map(v);
+    spacing[j * N + i] = Math.max(space(u), space(v));
   }
   for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) {
     const a = j * N + i, b = a + 1, c = a + N, d = c + 1;
@@ -44,6 +51,7 @@ function gridGeometry() {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aSpacing', new THREE.BufferAttribute(spacing, 1));
   g.setIndex(idx);
   return g;
 }
@@ -51,14 +59,43 @@ function gridGeometry() {
 function landMaterial() {
   return makePs1Material({ uCenter: { value: new THREE.Vector2() }, ...W }, NOISE_GLSL + /* glsl */ `
 uniform vec2 uCenter;
+attribute float aSpacing;
 varying vec3 vWorld;
 varying vec3 vN;
+// heightAt (noise.js) with each octave faded toward its average once the
+// vertex spacing s is too coarse to show it smoothly.
+float lodW(float period, float s) { return clamp((period / s - 3.0) / 3.0, 0.0, 1.0); }
+float fbmLod(vec2 p, int oct, float seed, float period, float s) {
+  float sum = 0.0, a = 0.5, n = 0.0;
+  for (int i = 0; i < 6; i++) {
+    if (i >= oct) break;
+    sum += a * mix(0.5, n_value(p, seed + float(i) * 7.0), lodW(period, s)); n += a; a *= 0.5; p *= 2.0; period *= 0.5;
+  }
+  return sum / n;
+}
+float ridgedLod(vec2 p, int oct, float seed, float period, float s) {
+  float sum = 0.0, a = 0.5, n = 0.0;
+  for (int i = 0; i < 6; i++) {
+    if (i >= oct) break;
+    float r = 1.0 - abs(n_value(p, seed + float(i) * 7.0) * 2.0 - 1.0);
+    sum += a * mix(1.0 / 3.0, r * r, lodW(period, s)); n += a; a *= 0.5; p *= 2.0; period *= 0.5;
+  }
+  return sum / n;
+}
+float heightLod(vec2 w, float s) {
+  float c = fbmLod(w / 13000.0, 3, 11.0, 13000.0, s);
+  float land = smoothstep(0.4, 0.52, c);
+  float hills = fbmLod(w / 2600.0, 4, 23.0, 2600.0, s);
+  float mtn = smoothstep(0.48, 0.7, fbmLod(w / 17000.0, 2, 37.0, 17000.0, s));
+  float r = ridgedLod(w / 4200.0, 4, 51.0, 4200.0, s);
+  return (c - 0.44) * 1500.0 + land * (hills * 420.0 + mtn * r * 2600.0);
+}
 void main() {
   vec2 w = uCenter + position.xz;
-  float h = heightAt(w);
-  float e = 25.0;
-  vec3 n = normalize(vec3(heightAt(w - vec2(e, 0.0)) - heightAt(w + vec2(e, 0.0)), 2.0 * e,
-                          heightAt(w - vec2(0.0, e)) - heightAt(w + vec2(0.0, e))));
+  float h = heightLod(w, aSpacing);
+  float e = max(25.0, aSpacing * 0.5);
+  vec3 n = normalize(vec3(heightLod(w - vec2(e, 0.0), aSpacing) - heightLod(w + vec2(e, 0.0), aSpacing), 2.0 * e,
+                          heightLod(w - vec2(0.0, e), aSpacing) - heightLod(w + vec2(0.0, e), aSpacing)));
   vWorld = vec3(w.x, h, w.y);
   vN = n;
   gl_Position = psx(projectionMatrix * viewMatrix * vec4(vWorld, 1.0));
@@ -214,7 +251,7 @@ export class Land {
   }
 
   update(camPos) {
-    const cx = Math.round(camPos.x / SNAP) * SNAP, cz = Math.round(camPos.z / SNAP) * SNAP;
+    const cx = camPos.x, cz = camPos.z;
     if (cx !== this.center.x || cz !== this.center.y) {
       this.center.set(cx, cz);
       this.land.material.uniforms.uCenter.value.set(cx, cz);

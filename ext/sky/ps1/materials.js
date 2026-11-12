@@ -118,7 +118,9 @@ vec3 windSway(vec3 base, float h) {
 }
 // Snap clip-space xy to the low-res pixel grid (uSnap = grid size in pixels).
 vec4 psx(vec4 clip) {
-  if (uPass > 0.5 || uSnap <= 0.0) return clip;
+  // (fightskyone: vertices near or behind the eye are left unsnapped; on huge
+  // triangles snapping them made whole surfaces jump.)
+  if (uPass > 0.5 || uSnap <= 0.0 || clip.w < 1.0) return clip;
   vec2 grid = uRes * 0.5 / uSnap;
   vec3 ndc = clip.xyz / clip.w;
   ndc.xy = floor(ndc.xy * grid + 0.5) / grid;

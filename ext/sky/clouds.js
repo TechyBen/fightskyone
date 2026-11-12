@@ -11,7 +11,7 @@
 
 import * as THREE from './vendor/three.module.js';
 import { makePs1Material } from './ps1/materials.js';
-import { NOISE_GLSL } from './noise.js';
+import { NOISE_GLSL, heightAt } from './noise.js';
 
 export const WEATHER = {
   scattered: { cover: 0.42, base: 1500, size: [500, 1300], towers: 0.08, deck: 0, cirrus: 0.35 },
@@ -75,6 +75,8 @@ void main() {
   float d = distance(vWorld, cameraPosition);
   if (b > smoothstep(40.0, 320.0, d) * uNearFade + (1.0 - uNearFade)) discard;
   if (b > smoothstep(0.02, 0.3, vEdge) + 0.12) discard;
+  // Fade in and out at the edge of the cloud field, so none pop on the horizon.
+  if (b > 1.0 - smoothstep(${(CELL * REACH * 0.72).toFixed(1)}, ${(CELL * REACH * 0.95).toFixed(1)}, length(vWorld.xz - cameraPosition.xz))) discard;
   float lit = vNdl * (0.55 + 0.45 * smoothstep(0.0, 0.5, vUp));
   float q = floor(lit * 4.0 + b * 0.9) / 4.0;
   vec3 shade = uAmbient * 0.75 + uSkyTop * 0.2;
@@ -162,7 +164,9 @@ export class Clouds {
     this.puffs = new THREE.InstancedMesh(geo, puffMaterial(), MAX_PUFFS);
     this.puffs.frustumCulled = false;
     this.puffs.count = 0;
-    const plane = new THREE.PlaneGeometry(70000, 70000, 1, 1).rotateX(-Math.PI / 2);
+    // Subdivided, so no vertex is ever far behind the camera (huge single
+    // triangles made the deck and cirrus jitter where they met the hills).
+    const plane = new THREE.PlaneGeometry(70000, 70000, 48, 48).rotateX(-Math.PI / 2);
     this.deck = new THREE.Mesh(plane, deckMaterial());
     this.cirrus = new THREE.Mesh(plane, cirrusMaterial());
     for (const m of [this.puffs, this.deck, this.cirrus]) { m.frustumCulled = false; this.group.add(m); }
@@ -190,7 +194,10 @@ export class Clouds {
     const x = (ci + 0.2 + 0.6 * hashf(ci, cj, s + 1)) * CELL, z = (cj + 0.2 + 0.6 * hashf(ci, cj, s + 2)) * CELL;
     const width = w.size[0] + (w.size[1] - w.size[0]) * hashf(ci, cj, s + 3);
     const tower = hashf(ci, cj, s + 4) < w.towers;
-    const y0 = w.base + (hashf(ci, cj, s + 5) - 0.5) * 300 - (w.deck ? 150 : 0);
+    // Bases sit clear of the hills under them (clouds cutting into a slope
+    // flickered where the two surfaces met).
+    const ground = Math.max(0, heightAt(x, z), heightAt(x + width * 0.4, z), heightAt(x - width * 0.4, z), heightAt(x, z + width * 0.4), heightAt(x, z - width * 0.4));
+    const y0 = Math.max(w.base + (hashf(ci, cj, s + 5) - 0.5) * 300 - (w.deck ? 150 : 0), ground + 300);
     const tall = width * (tower ? 1.4 + hashf(ci, cj, s + 6) * 2.2 : 0.35 + hashf(ci, cj, s + 6) * 0.45);
     const puffs = [];
     let k = 0;
