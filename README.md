@@ -49,6 +49,8 @@ Only while flying (behind the feed the sky is silent), all synthesised with Web 
 
 The music is generated live too: 130 BPM in F minor, a syncopated FM bass line following Fm, Db, Ab, Eb, under a pad, with hats, a soft kick and a bell line coming and going in sections. Volume and music level are in the popup.
 
+**Your own loop:** in the popup, **Your own MIDI loop…** reads a MIDI file and replays it note for note, at its own tempo, with the sky's instruments in place of the built-in bass line; the pad and bells follow its key. Only the notes are kept, in this browser's extension storage, and nothing is uploaded. Use loops you have the rights to; they never go in this repo (`local/` folders are git-ignored, and `?midi=local/loop.mid` plays one when testing the page on its own).
+
 ## The jets
 
 - Your follow list comes from Bluesky's public API, and new posts from [Jetstream](https://github.com/bluesky-social/jetstream) filtered to those accounts (the last 3 hours replay on start). Each top-level post becomes a jet; up to 14 fly at once, new posts first, then older ones again round robin so the sky stays busy.
@@ -64,6 +66,7 @@ The music is generated live too: 130 BPM in F minor, a syncopated FM bass line f
 | Sound while flying | on | Engine, wind and effects |
 | Volume | 60% | |
 | Music | 50% | |
+| Your own MIDI loop | none | Replaces the built-in bass line; "Use built-in" switches back |
 | Whose follows | blank | Blank uses the account signed in to bsky.app |
 | Feed panel | 70% | Opacity of the blurred panel behind the feed |
 | Blur | 6 px | |

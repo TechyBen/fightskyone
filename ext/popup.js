@@ -35,3 +35,29 @@ document.getElementById('fly').addEventListener('click', async () => {
     note.textContent = 'Open bsky.app in this tab first.';
   }
 });
+
+// Your own music loop: the MIDI file is read here, and only its notes (a few
+// KB) are kept, in this browser's extension storage. Nothing is uploaded.
+const loopName = document.getElementById('loop-name'), loopNote = document.getElementById('loop-note');
+const pick = document.getElementById('loop-pick'), clear = document.getElementById('loop-clear'), file = document.getElementById('loop-file');
+function showLoop(loop) {
+  loopName.textContent = loop ? `♪ ${loop.name} · ${loop.bpm} BPM · ${loop.beats / 4} bars` : 'Built-in music';
+  clear.hidden = !loop;
+}
+chrome.storage.local.get('midiLoop').then(r => showLoop(r.midiLoop));
+pick.addEventListener('click', () => file.click());
+clear.addEventListener('click', () => chrome.storage.local.remove('midiLoop').then(() => showLoop(null)));
+file.addEventListener('change', async () => {
+  const f = file.files[0];
+  if (!f) return;
+  try {
+    const loop = parseMidi(await f.arrayBuffer());
+    if (loop.name === 'MIDI loop') loop.name = f.name.replace(/\.midi?$/i, '');
+    await chrome.storage.local.set({ midiLoop: loop });
+    showLoop(loop);
+    loopNote.textContent = 'Replayed with the sky’s own instruments. Kept only in this browser.';
+  } catch (e) {
+    loopNote.textContent = `Couldn't read that file: ${e.message}`;
+  }
+  file.value = '';
+});

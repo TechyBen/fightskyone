@@ -79,6 +79,16 @@ let people = {};
 const audio = new Audio();
 audio.set({ on: q.get('sound') !== '0', vol: (+(q.get('vol') ?? 60)) / 100, music: (+(q.get('music') ?? 50)) / 100 });
 const hud = new Hud({ onClose: () => audio.closeCard() });
+// Your own music loop: chosen in the popup and kept only in this browser's
+// extension storage (or ?midi=<url> when testing the page on its own).
+const store = typeof chrome !== 'undefined' && chrome.storage?.local;
+if (store) {
+  store.get('midiLoop').then(r => audio.setLoop(r.midiLoop)).catch(() => {});
+  chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && 'midiLoop' in ch) audio.setLoop(ch.midiLoop.newValue); });
+}
+if (q.get('midi') && window.parseMidi) {
+  fetch(q.get('midi')).then(r => r.arrayBuffer()).then(b => audio.setLoop(window.parseMidi(b))).catch(e => console.warn('midi', e));
+}
 traffic.audio = audio;
 const combat = new Combat(scene, camera, player, traffic, particles, audio, {
   onBurst: (j, at) => {

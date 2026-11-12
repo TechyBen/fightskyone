@@ -46,6 +46,7 @@ export class Audio {
     this.buildEngine();
     this.buildWind();
     this.music = new Music(ctx, this.musicBus, this.noise);
+    this.music.setLoop(this.loop);
     this.apply();
   }
 
@@ -54,6 +55,12 @@ export class Audio {
     if (vol !== undefined) this.vol = vol;
     if (music !== undefined) this.musicVol = music;
     this.apply();
+  }
+
+  // Your own MIDI loop (parsed), or null for the built-in music.
+  setLoop(loop) {
+    this.loop = loop || null;
+    this.music?.setLoop(this.loop);
   }
 
   setActive(on) { this.active = on; if (on) this.start(); this.apply(); }

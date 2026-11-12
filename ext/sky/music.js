@@ -6,6 +6,12 @@
 // gentle kick and a sparse bell line. Sections bring parts in and out so it
 // drifts rather than loops: pad alone, bass in, full, a breakdown, full.
 // Everything is scheduled a little ahead on the audio clock.
+//
+// Your own loop: a MIDI loop loaded in the popup (kept only in this
+// browser's extension storage) replaces the bass line and is replayed note
+// for note, at its own tempo, with these instruments. The pad and bells then
+// sit on the loop's key (its lowest common note, minor or major from its
+// third), and the bells use the loop's own notes.
 
 const BPM = 130, STEP = 60 / BPM / 4;   // sixteenths
 // The bass line, 32 sixteenths: [step, interval above the chord root, velocity].
@@ -37,8 +43,10 @@ export class Music {
     this.next = 0;
     this.playing = false;
     // A little space: a feedback delay on the pad and bells.
+    this.stepDur = STEP;
+    this.loop = null;
     this.wet = ctx.createGain(); this.wet.gain.value = 0.25;
-    const dl = ctx.createDelay(1); dl.delayTime.value = STEP * 3;
+    const dl = this.delay = ctx.createDelay(1); dl.delayTime.value = STEP * 3;
     const fb = ctx.createGain(); fb.gain.value = 0.35;
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
     this.wet.connect(dl).connect(lp).connect(fb).connect(dl);
@@ -53,8 +61,39 @@ export class Music {
     while (this.next < ctx.currentTime + 0.15) {
       this.play(this.step, this.next);
       this.step++;
-      this.next += STEP;
+      this.next += this.stepDur;
     }
+  }
+
+  // A parsed MIDI loop (see ../midi.js), or null for the built-in line.
+  setLoop(loop) {
+    if (!loop?.notes?.length) {
+      this.loop = null;
+      this.stepDur = STEP;
+    } else {
+      const steps = Math.round(loop.beats * 4), stepDur = 60 / loop.bpm / 4;
+      const events = Array.from({ length: steps }, () => []);
+      for (const [t, len, n, v] of loop.notes) {
+        const s = Math.floor(t * 4 + 1e-6);
+        if (s < steps) events[s].push({ off: (t * 4 - s) * stepDur, dur: Math.max(0.05, len * 4 * stepDur), n, v: v / 127 });
+      }
+      // Key: the commonest pitch class among the lower half of the notes.
+      const pitches = loop.notes.map(x => x[2]).sort((a, b) => a - b);
+      const low = pitches.slice(0, Math.max(1, Math.ceil(pitches.length / 2)));
+      const count = new Array(12).fill(0);
+      for (const n of low) count[n % 12]++;
+      const pc = count.indexOf(Math.max(...count));
+      const all = new Set(pitches.map(n => (n - pc + 120) % 12));
+      const minor = all.has(3) || !all.has(4);
+      let root = pitches[0] - ((pitches[0] - pc + 120) % 12);
+      while (root > 45) root -= 12;
+      while (root < 33) root += 12;
+      // The loop's own notes, plus the chord's fifth and octave so the bells have a line.
+      const line = [...new Set([...all, 7, 12])].filter(i => i).sort((a, b) => a - b);
+      this.loop = { steps, events, root, minor, line: line.length ? line : [7, minor ? 3 : 4, 12] };
+      this.stepDur = stepDur;
+    }
+    this.delay.delayTime.setValueAtTime(this.stepDur * 3, this.ctx.currentTime);
   }
 
   section(bar) {
@@ -66,9 +105,12 @@ export class Music {
   play(step, t) {
     const bar = Math.floor(step / 16), s16 = step % 16, s32 = step % 32;
     const sec = this.section(bar);
-    const [root, minor] = CHORDS[Math.floor(bar / 2) % CHORDS.length];
-    if (sec.pad && s32 === 0) this.pad(root, minor, t, 32 * STEP);
-    if (sec.bass) {
+    const L = this.loop;
+    const [root, minor] = L ? [L.root, L.minor] : CHORDS[Math.floor(bar / 2) % CHORDS.length];
+    if (sec.pad && s32 === 0) this.pad(root, minor, t, 32 * this.stepDur);
+    if (L) {
+      if (sec.bass) for (const e of L.events[step % L.steps]) this.pluck(hz(e.n), t + e.off, e.v, e.dur);
+    } else if (sec.bass) {
       for (const [st, iv, v] of LOOP) {
         if (st !== s32) continue;
         const semis = iv === 'third' ? (minor ? 15 : 16) : iv;
@@ -80,14 +122,14 @@ export class Music {
     // Bells: a short line over the chord (fifth, third, octave, seventh),
     // two octaves up, sparse, resting every third bar.
     if (sec.arp && bar % 3 !== 2) {
-      const line = [7, minor ? 3 : 4, 12, 10];
+      const line = L ? L.line : [7, minor ? 3 : 4, 12, 10];
       if (s16 % 6 === 3) this.bell(hz(root + 24 + line[(step / 6 | 0) % line.length]), t);
     }
   }
 
   // FM pluck: a sine carrier with a sine modulator at 2x whose depth decays
   // fast: bright at the attack, round after.
-  pluck(f, t, v) {
+  pluck(f, t, v, dur = this.stepDur * 1.7) {
     const ctx = this.ctx;
     const car = ctx.createOscillator(), mod = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain();
     car.frequency.value = f; mod.frequency.value = f * 2;
@@ -97,9 +139,9 @@ export class Music {
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.22 * v, t + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + STEP * 1.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     car.connect(lp).connect(g).connect(this.out);
-    car.start(t); mod.start(t); car.stop(t + STEP * 2); mod.stop(t + STEP * 2);
+    car.start(t); mod.start(t); car.stop(t + dur + 0.05); mod.stop(t + dur + 0.05);
   }
 
   // Pad: the chord as detuned saws through a slowly opening lowpass.

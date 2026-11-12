@@ -21,6 +21,9 @@
     font: inherit; font-weight: 650; cursor: pointer; }
   button:hover { filter: brightness(1.08); }
   kbd { font: 11px ui-monospace, Consolas, monospace; padding: 0 4px; border: 1px solid color-mix(in srgb, var(--dim) 50%, transparent); border-radius: 4px; }
+  .loop { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 0; }
+  .loop span { flex: 1 1 100%; color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button.small { width: auto; flex: 1; padding: 5px 8px; font-size: 12px; font-weight: 600; }
   hr { border: 0; border-top: 1px solid color-mix(in srgb, var(--dim) 30%, transparent); margin: 12px 0; }
 </style>
 </head>
@@ -32,10 +35,16 @@
 <div class="note" style="margin: 6px 0 0; text-align: center;" id="fly-note">or the ✈ button on bsky.app · <kbd>Esc</kbd> to return</div>
 <label class="check"><input type="checkbox" id="jets"> Jets from people I follow</label>
 <div class="note">Point at a jet to lock on and see who it is; click to send a missile, and the burst opens their post. <kbd>Enter</kbd> opens the thread.</div>
+<label>Whose follows<input type="text" id="handle" placeholder="the account signed in to bsky.app" spellcheck="false"></label>
+<hr>
 <label class="check"><input type="checkbox" id="sound"> Sound while flying</label>
 <label>Volume <output for="vol"></output><input type="range" id="vol" min="0" max="100" step="5"></label>
 <label>Music <output for="music"></output><input type="range" id="music" min="0" max="100" step="5"></label>
-<label>Whose follows<input type="text" id="handle" placeholder="the account signed in to bsky.app" spellcheck="false"></label>
+<div class="loop"><span id="loop-name">Built-in music</span>
+  <button type="button" class="small" id="loop-pick">Your own MIDI loop…</button>
+  <button type="button" class="small" id="loop-clear" hidden>Use built-in</button></div>
+<input type="file" id="loop-file" accept=".mid,.midi,audio/midi" hidden>
+<div class="note" id="loop-note" style="margin: 4px 0 0;">Replayed with the sky's own instruments. Kept only in this browser.</div>
 <hr>
 <label>Feed panel <output for="glass"></output><input type="range" id="glass" min="0" max="100" step="5"></label>
 <label>Blur <output for="blur"></output><input type="range" id="blur" min="0" max="20" step="1"></label>
@@ -44,6 +53,7 @@
 <label>Pixel height <output for="px"></output><input type="range" id="px" min="120" max="480" step="20"></label>
 <label>Frame cap <output for="fps"></output><input type="range" id="fps" min="10" max="60" step="5"></label>
 <script src="settings.js"></script>
+<script src="midi.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>
