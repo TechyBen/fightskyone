@@ -1,0 +1,123 @@
+/* Everything is scoped to html.fightsky-on so switching off restores Bluesky.
+   The page keeps Bluesky's own colour underneath, so it shows (never white)
+   until the sky has loaded. */
+html.fightsky-on {
+  background: var(--fightsky-bg, transparent) !important;
+}
+
+html.fightsky-on body,
+html.fightsky-on #root {
+  background: transparent !important;
+}
+
+#fightsky-frame,
+#fightsky-veil,
+#fightsky-glass {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: -1;
+  border: 0;
+  pointer-events: none;
+}
+
+/* Hidden until it's ready, then a slow, dim fade in. */
+#fightsky-frame {
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  opacity: 0;
+  transition: opacity 3s ease-in;
+}
+
+html.fightsky-ready #fightsky-frame {
+  opacity: 1;
+}
+
+#fightsky-veil {
+  left: 0;
+  right: 0;
+}
+
+#fightsky-glass {
+  left: calc(50% - 300px);
+  width: 600px;
+}
+
+/* Sticky and fixed bars (tab bar, bottom bar) stay frosted. More specific
+   than the page-colour rule that content.js writes. */
+html.fightsky-on #root [data-fightsky-bar][style] {
+  background-color: var(--fightsky-bar) !important;
+  backdrop-filter: blur(10px);
+}
+
+/* The side columns (nav, search, trending) sit straight on the sky: give
+   all text a soft halo in the page colour so it stays readable. Inside the
+   feed panel the halo matches the panel and doesn't show. */
+html.fightsky-on #root {
+  text-shadow: 0 0 2px var(--fightsky-bg), 0 0 6px var(--fightsky-bg);
+}
+
+html.fightsky-on #root svg {
+  filter: drop-shadow(0 0 2px var(--fightsky-bg));
+}
+
+/* Fly mode: Bluesky fades out and the sky takes the mouse and keyboard. */
+html.fightsky-on #root,
+#fightsky-veil,
+#fightsky-glass {
+  transition: opacity 0.8s ease;
+}
+
+/* Opening a jet's post: Bluesky stays hidden until the post is on the page,
+   then fades in (the transition above). */
+html.fightsky-opening #root {
+  opacity: 0 !important;
+  pointer-events: none;
+  transition: none;
+}
+
+html.fightsky-fly #root {
+  opacity: 0;
+  pointer-events: none;
+}
+
+html.fightsky-fly #fightsky-veil,
+html.fightsky-fly #fightsky-glass {
+  opacity: 0;
+}
+
+html.fightsky-fly #fightsky-frame {
+  z-index: 2147483647;
+  pointer-events: auto;
+}
+
+/* The jet button: bottom right, above the sky too, so it also leads back. */
+#fightsky-fly-btn {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--fightsky-bg) 60%, #888);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fightsky-bg) 75%, transparent);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+#fightsky-fly-btn:hover,
+#fightsky-fly-btn:focus-visible {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+html.fightsky-fly #fightsky-fly-btn {
+  opacity: 1;
+}
